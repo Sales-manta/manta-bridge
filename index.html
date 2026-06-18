@@ -1327,7 +1327,7 @@ function rFathom(){
   if(!pending.length){el.innerHTML='<div class="f-empty"><svg><use href="#ic-circle-check"/></svg>All caught up.</div>';return;}
   el.innerHTML=`<div class="f-group"><div class="f-hdr"><div><div class="f-hdr-title">Meeting Action Items</div></div><div class="f-hdr-btns"><button class="btn-aall" onclick="fApproveAll()">Approve all</button><button class="btn-dall" onclick="fDismissAll()">Dismiss all</button></div></div>
     ${pending.map(f=>`<div class="f-item"><div class="f-left"><div class="f-title">${f.title}</div><div class="tmeta"><span class="tag ${catTag[f.cat]||''}">${f.cat}</span><span class="tag ${priTag[f.pri]}">${f.pri}</span></div></div>
-    <div class="f-right"><div class="f-btns"><button class="btn-ap" onclick="fApprove('${f.id}')"><svg><use href="#ic-check"/></svg> Add</button><button class="btn-dis" onclick="fDismiss('${f.id}')"><svg><use href="#ic-x"/></svg></button></div></div></div>`).join('')}
+    <div class="f-right"><div class="f-btns"><button class="btn-ap" onclick="fApprove(${f.id})"><svg><use href="#ic-check"/></svg> Add</button><button class="btn-dis" onclick="fDismiss(${f.id})"><svg><use href="#ic-x"/></svg></button></div></div></div>`).join('')}
   </div>`;
 }
 
