@@ -723,18 +723,20 @@ async function init(){
 }
 
 async function loadAll(){
-  const [wt, pt, pr, ev, mt] = await Promise.all([
+  const [wt, pt, pr, ev, mt, fi] = await Promise.all([
     sbGet('work_tasks'),
     sbGet('personal_tasks'),
     sbGet('projects'),
     sbGet('events'),
     sbGet('meetings'),
+    sbGet('fathom_items'),
   ]);
   workTasks = wt || [];
   personalTasks = pt || [];
   projects = pr || [];
   events = ev || [];
   meetings = mt || [];
+  fathomItems = fi || [];
 }
 
 function globalSearch(q){
@@ -1334,12 +1336,22 @@ async function fApprove(fid){
   f.status='approved';
   const [saved]=await sbInsert('work_tasks',{title:f.title, cat:f.cat, pri:f.pri, status:'todo'});
   workTasks.unshift(saved);
+  await sbUpdate('fathom_items', fid, {status:'approved'});
   showBanner('f-banner','f-banner-txt','Task added — "'+f.title+'"');
   renderAll();
 }
-function fDismiss(fid){const f=fathomItems.find(f=>f.id===fid);if(f)f.status='dismissed';renderAll();}
+async function fDismiss(fid){
+  const f=fathomItems.find(f=>f.id===fid);
+  if(f) f.status='dismissed';
+  await sbUpdate('fathom_items', fid, {status:'dismissed'});
+  renderAll();
+}
 async function fApproveAll(){const items=fathomItems.filter(f=>f.status==='pending');for(const f of items){await fApprove(f.id);}renderAll();}
-function fDismissAll(){fathomItems.filter(f=>f.status==='pending').forEach(f=>f.status='dismissed');renderAll();}
+async function fDismissAll(){
+  const items=fathomItems.filter(f=>f.status==='pending');
+  for(const f of items){f.status='dismissed'; await sbUpdate('fathom_items', f.id, {status:'dismissed'});}
+  renderAll();
+}
 function syncFathom(){showAIResponse("To sync Fathom, open Claude at claude.ai and say 'tasks'.");}
 
 function rMeetingArchive(){
