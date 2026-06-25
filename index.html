@@ -135,7 +135,13 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
 .task-search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--text3);fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .task-search input{width:100%;padding:7px 10px 7px 30px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;transition:border-color .15s}
 .task-search input:focus{border-color:#6D7636}
-.task-item{display:flex;align-items:flex-start;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
+.task-item{display:flex;align-items:flex-start;gap:9px;padding:9px 0;border-bottom:1px solid var(--border);transition:background .12s,opacity .15s}
+.task-item.dragging{opacity:.4}
+.task-item.drag-over{background:var(--accent-light);border-radius:var(--radius-sm)}
+.drag-handle{display:flex;align-items:center;color:var(--text3);cursor:grab;flex-shrink:0;padding-top:2px;opacity:0;transition:opacity .12s}
+.task-item:hover .drag-handle{opacity:.6}
+.drag-handle:hover{opacity:1!important}
+.drag-handle:active{cursor:grabbing}
 .task-item:last-child{border-bottom:none}
 .tck{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--border2);flex-shrink:0;margin-top:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
 .tck:hover{border-color:#6D7636}.tck.done{background:#6D7636;border-color:#6D7636}
@@ -994,7 +1000,8 @@ async function deleteEvent(id){ await sbDelete('events',id); events=events.filte
 
 function taskHTML(t,type){
   const hasNotes = t.notes && t.notes.trim();
-  return`<div class="task-item" style="cursor:default">
+  return`<div class="task-item" draggable="true" data-id="${t.id}" data-type="${type}" ondragstart="taskDragStart(event)" ondragover="taskDragOver(event)" ondragleave="taskDragLeave(event)" ondrop="taskDrop(event)" ondragend="taskDragEnd(event)">
+    <div class="drag-handle" title="Drag to reorder"><svg width="12" height="12" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="8" y1="6" x2="8" y2="6.01"/><line x1="8" y1="12" x2="8" y2="12.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="16" y1="6" x2="16" y2="6.01"/><line x1="16" y1="12" x2="16" y2="12.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg></div>
     <div class="tck${t.status==='done'?' done':''}" onclick="toggleTask(${t.id},'${type}')" style="cursor:pointer"><svg><use href="#ic-check"/></svg></div>
     <div class="tt" onclick="openTaskDetail(${t.id},'${type}')" style="cursor:pointer">
       <div class="ttitle${t.status==='done'?' done':''}">${t.title}</div>
@@ -1007,6 +1014,55 @@ function taskHTML(t,type){
     </div>
     <button class="tdel" onclick="deleteTask(${t.id},'${type}')"><svg><use href="#ic-trash"/></svg></button>
   </div>`;
+}
+
+// ── DRAG AND DROP REORDERING ───────────────────────────────────────────────
+let dragSrcEl = null;
+
+function taskDragStart(e){
+  dragSrcEl = e.currentTarget;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', e.currentTarget.dataset.id);
+}
+function taskDragOver(e){
+  e.preventDefault();
+  const target = e.currentTarget;
+  if(target === dragSrcEl) return;
+  target.classList.add('drag-over');
+}
+function taskDragLeave(e){
+  e.currentTarget.classList.remove('drag-over');
+}
+async function taskDrop(e){
+  e.preventDefault();
+  const target = e.currentTarget;
+  target.classList.remove('drag-over');
+  if(!dragSrcEl || target === dragSrcEl) return;
+
+  const container = target.parentElement;
+  const items = Array.from(container.children).filter(c=>c.classList.contains('task-item'));
+  const srcIdx = items.indexOf(dragSrcEl);
+  const tgtIdx = items.indexOf(target);
+  if(srcIdx < tgtIdx) target.after(dragSrcEl);
+  else target.before(dragSrcEl);
+
+  // Persist new order for all items in this container
+  const type = target.dataset.type;
+  const newOrder = Array.from(container.children).filter(c=>c.classList.contains('task-item'));
+  const list = type==='work' ? workTasks : personalTasks;
+  for(let i=0;i<newOrder.length;i++){
+    const id = parseInt(newOrder[i].dataset.id);
+    const t = list.find(t=>t.id===id);
+    if(t){
+      t.sort_order = i;
+      await sbUpdate(type==='work'?'work_tasks':'personal_tasks', id, {sort_order:i});
+    }
+  }
+}
+function taskDragEnd(e){
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.task-item.drag-over').forEach(el=>el.classList.remove('drag-over'));
 }
 
 let activeTaskDetail = null;
@@ -1075,7 +1131,7 @@ function rht(){
 
 function rwt(){
   const q=document.getElementById('w-search').value.toLowerCase();
-  const list=workTasks.filter(t=>t.status===workTab&&(!q||t.title.toLowerCase().includes(q))).sort((a,b)=>priOrder[a.pri]-priOrder[b.pri]);
+  const list=workTasks.filter(t=>t.status===workTab&&(!q||t.title.toLowerCase().includes(q))).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999)||priOrder[a.pri]-priOrder[b.pri]);
   const adm=list.filter(t=>t.cat==='Admin Task');
   const call=list.filter(t=>t.cat==='Call/Text');
   const inv=list.filter(t=>t.cat==='Invoicing');
@@ -1091,15 +1147,10 @@ function rwt(){
 
 function rpt(){
   const q=document.getElementById('p-search').value.toLowerCase();
-  const list=personalTasks.filter(t=>t.status===persTab&&(!q||t.title.toLowerCase().includes(q))).sort((a,b)=>priOrder[a.pri]-priOrder[b.pri]);
+  const list=personalTasks.filter(t=>t.status===persTab&&(!q||t.title.toLowerCase().includes(q))).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999)||priOrder[a.pri]-priOrder[b.pri]);
   const el=document.getElementById('p-list'); if(!el)return;
   if(!list.length){el.innerHTML='<div class="empty-state"><svg><use href="#ic-checklist"/></svg>All clear!</div>';return;}
-  el.innerHTML=list.map(t=>`
-    <div class="task-item">
-      <div class="tck${t.status==='done'?' done':''}" onclick="toggleTask(${t.id},'personal')"><svg><use href="#ic-check"/></svg></div>
-      <div class="tt"><div class="ttitle${t.status==='done'?' done':''}">${t.title}</div><div class="tmeta"><span class="tag ${catTag[t.cat]||''}">${t.cat}</span><span class="tag ${priTag[t.pri]}">${t.pri}</span>${t.due?`<span style="font-size:10px;color:var(--text3)">${t.due}</span>`:''}</div></div>
-      <button class="tdel" onclick="deleteTask(${t.id},'personal')"><svg><use href="#ic-trash"/></svg></button>
-    </div>`).join('');
+  el.innerHTML=list.map(t=>taskHTML(t,'personal')).join('');
   document.getElementById('p-todo-c').textContent=personalTasks.filter(t=>t.status==='todo').length||'';
   document.getElementById('p-done-c').textContent=personalTasks.filter(t=>t.status==='done').length||'';
 }
