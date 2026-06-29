@@ -562,16 +562,31 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
 <div class="modal-ov" id="task-modal">
   <div class="modal">
     <h3 id="tm-title">Add task</h3>
+    <span class="form-label" style="margin-top:0">Task type</span>
+    <div style="display:flex;gap:6px">
+      <button type="button" id="tm-type-simple" class="ttab active" style="flex:1;justify-content:center;display:flex" onclick="setTaskType('simple')">Simple task</button>
+      <button type="button" id="tm-type-checklist" class="ttab" style="flex:1;justify-content:center;display:flex" onclick="setTaskType('checklist')">Checklist task</button>
+    </div>
     <span class="form-label">Task description</span>
-    <input type="text" id="tm-desc" placeholder="What needs to be done?" onkeydown="if(event.key==='Enter')saveTask()">
+    <input type="text" id="tm-desc" placeholder="What needs to be done?" onkeydown="if(event.key==='Enter'&&taskTypeMode==='simple')saveTask()">
     <span class="form-label">Category</span>
     <select id="tm-cat"></select>
     <span class="form-label">Priority</span>
     <select id="tm-pri"><option>High</option><option selected>Medium</option><option>Low</option></select>
     <span class="form-label">Due date (optional)</span>
     <input type="date" id="tm-due">
-    <span class="form-label">Notes (optional)</span>
-    <textarea id="tm-notes" placeholder="Any extra detail..."></textarea>
+    <div id="tm-notes-section">
+      <span class="form-label">Notes (optional)</span>
+      <textarea id="tm-notes" placeholder="Any extra detail..."></textarea>
+    </div>
+    <div id="tm-checklist-section" style="display:none">
+      <span class="form-label">Checklist items</span>
+      <div id="tm-checklist-list"></div>
+      <div class="inline-add" style="margin-top:6px">
+        <input type="text" id="tm-checklist-new" placeholder="Add an item..." onkeydown="if(event.key==='Enter'){event.preventDefault();addChecklistDraftItem();}">
+        <button type="button" onclick="addChecklistDraftItem()">Add</button>
+      </div>
+    </div>
     <div class="modal-btns">
       <button class="btn-ghost" onclick="closeModal('task-modal')">Cancel</button>
       <button class="btn-primary" onclick="saveTask()">Save task</button>
@@ -594,8 +609,18 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
     <select id="td-pri"><option>High</option><option>Medium</option><option>Low</option></select>
     <span class="form-label">Due date (optional)</span>
     <input type="date" id="td-due-input">
-    <span class="form-label">Notes (optional)</span>
-    <textarea id="td-notes" style="min-height:90px;resize:vertical" placeholder="No notes yet..."></textarea>
+    <div id="td-notes-wrap">
+      <span class="form-label">Notes (optional)</span>
+      <textarea id="td-notes" style="min-height:90px;resize:vertical" placeholder="No notes yet..."></textarea>
+    </div>
+    <div id="td-checklist-wrap" style="display:none">
+      <span class="form-label">Checklist items</span>
+      <div id="td-checklist-list"></div>
+      <div class="inline-add" style="margin-top:6px">
+        <input type="text" id="td-checklist-new" placeholder="Add an item..." onkeydown="if(event.key==='Enter'){event.preventDefault();addChecklistItemLive();}">
+        <button type="button" onclick="addChecklistItemLive()">Add</button>
+      </div>
+    </div>
     <div class="modal-btns" style="margin-top:16px">
       <button class="btn-ghost" id="td-toggle-btn" onclick="toggleTaskFromDetail()"></button>
       <button class="btn-ghost" onclick="closeModal('task-detail-modal')">Cancel</button>
@@ -702,6 +727,7 @@ let calYear = TODAY.getFullYear(), calMonth = TODAY.getMonth();
 let homeStatus='todo', homeType='all', workTab='todo', persTab='todo';
 let taskModalType='work', activeProjId=null, activeProjTab='tasks';
 let workTasks=[], personalTasks=[], projects=[], events=[], fathomItems=[], meetings=[];
+let checklistCounts={}, checklistItemsCache={};
 
 const priOrder={High:0,Medium:1,Low:2};
 const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -730,13 +756,14 @@ async function init(){
 }
 
 async function loadAll(){
-  const [wt, pt, pr, ev, mt, fi] = await Promise.all([
+  const [wt, pt, pr, ev, mt, fi, ci] = await Promise.all([
     sbGet('work_tasks'),
     sbGet('personal_tasks'),
     sbGet('projects'),
     sbGet('events'),
     sbGet('meetings'),
     sbGet('fathom_items'),
+    sbGet('task_checklist_items'),
   ]);
   workTasks = wt || [];
   personalTasks = pt || [];
@@ -744,6 +771,19 @@ async function loadAll(){
   events = ev || [];
   meetings = mt || [];
   fathomItems = fi || [];
+
+  const items = ci || [];
+  checklistItemsCache = {};
+  checklistCounts = {};
+  items.forEach(item=>{
+    const key = item.task_type+'_'+item.task_id;
+    if(!checklistItemsCache[key]) checklistItemsCache[key]=[];
+    checklistItemsCache[key].push(item);
+  });
+  Object.keys(checklistItemsCache).forEach(key=>{
+    const list = checklistItemsCache[key].sort((a,b)=>(a.sort_order??0)-(b.sort_order??0));
+    checklistCounts[key] = { done: list.filter(i=>i.done).length, total: list.length };
+  });
 }
 
 function globalSearch(q){
@@ -1001,15 +1041,18 @@ async function deleteEvent(id){ await sbDelete('events',id); events=events.filte
 
 function taskHTML(t,type){
   const hasNotes = t.notes && t.notes.trim();
+  const cl = checklistCounts[type+'_'+t.id];
+  const checklistBadge = (t.is_checklist && cl) ? `<span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:3px;font-weight:500"><svg width="10" height="10" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> ${cl.done}/${cl.total}</span>` : '';
   return`<div class="task-item" draggable="true" data-id="${t.id}" data-type="${type}" ondragstart="taskDragStart(event)" ondragover="taskDragOver(event)" ondragleave="taskDragLeave(event)" ondrop="taskDrop(event)" ondragend="taskDragEnd(event)">
     <div class="drag-handle" title="Drag to reorder"><svg width="12" height="12" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="8" y1="6" x2="8" y2="6.01"/><line x1="8" y1="12" x2="8" y2="12.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="16" y1="6" x2="16" y2="6.01"/><line x1="16" y1="12" x2="16" y2="12.01"/><line x1="16" y1="18" x2="16" y2="18.01"/></svg></div>
     <div class="tck${t.status==='done'?' done':''}" onclick="toggleTask(${t.id},'${type}')" style="cursor:pointer"><svg><use href="#ic-check"/></svg></div>
     <div class="tt" onclick="openTaskDetail(${t.id},'${type}')" style="cursor:pointer">
-      <div class="ttitle${t.status==='done'?' done':''}">${t.title}</div>
+      <div class="ttitle${t.status==='done'?' done':''}">${t.is_checklist?'<svg width="12" height="12" style="margin-right:4px;vertical-align:-1px" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><polyline points="4 6 5 7 7 5"/><polyline points="4 12 5 13 7 11"/></svg>':''}${t.title}</div>
       <div class="tmeta">
         <span class="tag ${priTag[t.pri]}">${t.pri}</span>
         <span class="tag ${catTag[t.cat]||''}">${t.cat}</span>
         ${t.due?`<span style="font-size:10px;color:var(--text3)">${t.due}</span>`:''}
+        ${checklistBadge}
         ${hasNotes?`<span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:2px"><svg width="10" height="10" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Notes</span>`:''}
       </div>
     </div>
@@ -1082,8 +1125,81 @@ function openTaskDetail(id, type) {
   document.getElementById('td-cat').innerHTML = cats.map(c=>`<option${t.cat===c?' selected':''}>${c}</option>`).join('');
   document.getElementById('td-pri').value = t.pri || 'Medium';
   document.getElementById('td-toggle-btn').textContent = t.status === 'todo' ? 'Mark done' : 'Mark to do';
+
+  if (t.is_checklist) {
+    document.getElementById('td-notes-wrap').style.display = 'none';
+    document.getElementById('td-checklist-wrap').style.display = 'block';
+    renderChecklistLive();
+  } else {
+    document.getElementById('td-notes-wrap').style.display = 'block';
+    document.getElementById('td-checklist-wrap').style.display = 'none';
+  }
+
   document.getElementById('task-detail-modal').classList.add('open');
   setTimeout(()=>document.getElementById('td-title-input').focus(),50);
+}
+
+function renderChecklistLive(){
+  const key = activeTaskDetailType+'_'+activeTaskDetail;
+  const items = (checklistItemsCache[key]||[]).sort((a,b)=>(a.sort_order??0)-(b.sort_order??0));
+  const el = document.getElementById('td-checklist-list');
+  if(!items.length){ el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:6px 0">No items yet — add one below.</div>'; return; }
+  el.innerHTML = items.map(item=>`
+    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <div class="tck${item.done?' done':''}" onclick="toggleChecklistItemLive(${item.id})" style="cursor:pointer"><svg><use href="#ic-check"/></svg></div>
+      <span style="flex:1;font-size:13px;${item.done?'text-decoration:line-through;color:var(--text3)':''}">${item.title}</span>
+      <button type="button" onclick="deleteChecklistItemLive(${item.id})" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:2px"><svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+    </div>`).join('');
+}
+
+async function addChecklistItemLive(){
+  const inp = document.getElementById('td-checklist-new');
+  const val = inp.value.trim();
+  if(!val) return;
+  const key = activeTaskDetailType+'_'+activeTaskDetail;
+  const items = checklistItemsCache[key]||[];
+  const saved = await sbInsert('task_checklist_items',{task_id:activeTaskDetail, task_type:activeTaskDetailType, title:val, done:false, sort_order:items.length});
+  if(!checklistItemsCache[key]) checklistItemsCache[key]=[];
+  checklistItemsCache[key].push(Array.isArray(saved)?saved[0]:saved);
+  checklistCounts[key] = {done: checklistItemsCache[key].filter(i=>i.done).length, total: checklistItemsCache[key].length};
+  inp.value='';
+  renderChecklistLive();
+  rwt(); rpt(); rht();
+}
+
+async function toggleChecklistItemLive(itemId){
+  const key = activeTaskDetailType+'_'+activeTaskDetail;
+  const items = checklistItemsCache[key]||[];
+  const item = items.find(i=>i.id===itemId);
+  if(!item) return;
+  item.done = !item.done;
+  await sbUpdate('task_checklist_items', itemId, {done:item.done});
+  checklistCounts[key] = {done: items.filter(i=>i.done).length, total: items.length};
+  renderChecklistLive();
+
+  // Auto-complete parent task if all items done
+  const allDone = items.length>0 && items.every(i=>i.done);
+  const list = activeTaskDetailType==='work' ? workTasks : personalTasks;
+  const t = list.find(t=>t.id===activeTaskDetail);
+  if(t){
+    const newStatus = allDone ? 'done' : 'todo';
+    if(t.status !== newStatus){
+      t.status = newStatus;
+      const table = activeTaskDetailType==='work' ? 'work_tasks' : 'personal_tasks';
+      await sbUpdate(table, activeTaskDetail, {status:newStatus});
+      document.getElementById('td-toggle-btn').textContent = newStatus === 'todo' ? 'Mark done' : 'Mark to do';
+    }
+  }
+  rwt(); rpt(); rht();
+}
+
+async function deleteChecklistItemLive(itemId){
+  const key = activeTaskDetailType+'_'+activeTaskDetail;
+  await sbDelete('task_checklist_items', itemId);
+  checklistItemsCache[key] = (checklistItemsCache[key]||[]).filter(i=>i.id!==itemId);
+  checklistCounts[key] = {done: checklistItemsCache[key].filter(i=>i.done).length, total: checklistItemsCache[key].length};
+  renderChecklistLive();
+  rwt(); rpt(); rht();
 }
 
 async function saveTaskNotes() {
@@ -1097,8 +1213,8 @@ async function saveTaskNotes() {
     cat: document.getElementById('td-cat').value,
     pri: document.getElementById('td-pri').value,
     due: document.getElementById('td-due-input').value || null,
-    notes: document.getElementById('td-notes').value || null
   };
+  if (!t.is_checklist) updated.notes = document.getElementById('td-notes').value || null;
   Object.assign(t, updated);
   const table = activeTaskDetailType === 'work' ? 'work_tasks' : 'personal_tasks';
   await sbUpdate(table, activeTaskDetail, updated);
@@ -1182,6 +1298,39 @@ async function deleteTask(id,type){
 }
 
 // ── MODALS ────────────────────────────────────────────────────────────────────
+let taskTypeMode = 'simple';
+let checklistDraftItems = [];
+
+function setTaskType(mode){
+  taskTypeMode = mode;
+  document.getElementById('tm-type-simple').classList.toggle('active', mode==='simple');
+  document.getElementById('tm-type-checklist').classList.toggle('active', mode==='checklist');
+  document.getElementById('tm-notes-section').style.display = mode==='simple' ? 'block' : 'none';
+  document.getElementById('tm-checklist-section').style.display = mode==='checklist' ? 'block' : 'none';
+}
+
+function renderChecklistDraft(){
+  const el = document.getElementById('tm-checklist-list');
+  if(!checklistDraftItems.length){ el.innerHTML=''; return; }
+  el.innerHTML = checklistDraftItems.map((item,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span style="flex:1">${item}</span>
+      <button type="button" onclick="removeChecklistDraftItem(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:2px"><svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`).join('');
+}
+function addChecklistDraftItem(){
+  const inp = document.getElementById('tm-checklist-new');
+  const val = inp.value.trim();
+  if(!val) return;
+  checklistDraftItems.push(val);
+  inp.value='';
+  renderChecklistDraft();
+}
+function removeChecklistDraftItem(i){
+  checklistDraftItems.splice(i,1);
+  renderChecklistDraft();
+}
+
 function openModal(id,type){
   if(id==='task-modal'){
     taskModalType=type||'work';
@@ -1190,6 +1339,10 @@ function openModal(id,type){
     document.getElementById('tm-cat').innerHTML=cats.map(c=>`<option>${c}</option>`).join('');
     document.getElementById('tm-desc').value=''; document.getElementById('tm-notes').value='';
     document.getElementById('tm-due').value=''; document.getElementById('tm-pri').value='Medium';
+    checklistDraftItems = [];
+    document.getElementById('tm-checklist-new').value = '';
+    renderChecklistDraft();
+    setTaskType('simple');
     setTimeout(()=>document.getElementById('tm-desc').focus(),50);
   }
   if(id==='event-modal'){
@@ -1204,12 +1357,19 @@ document.querySelectorAll('.modal-ov').forEach(m=>m.addEventListener('click',e=>
 
 async function saveTask(){
   const title=document.getElementById('tm-desc').value.trim(); if(!title)return;
-  const task={title, cat:document.getElementById('tm-cat').value, pri:document.getElementById('tm-pri').value, status:'todo', due:document.getElementById('tm-due').value||null, notes:document.getElementById('tm-notes').value||null};
+  const isChecklist = taskTypeMode==='checklist';
+  const task={title, cat:document.getElementById('tm-cat').value, pri:document.getElementById('tm-pri').value, status:'todo', due:document.getElementById('tm-due').value||null, notes: isChecklist ? null : (document.getElementById('tm-notes').value||null), is_checklist: isChecklist};
   closeModal('task-modal');
   const table=taskModalType==='work'?'work_tasks':'personal_tasks';
   const [saved]=await sbInsert(table,task);
   if(taskModalType==='work') workTasks.unshift(saved);
   else personalTasks.unshift(saved);
+
+  if(isChecklist && checklistDraftItems.length){
+    for(let i=0;i<checklistDraftItems.length;i++){
+      await sbInsert('task_checklist_items',{task_id:saved.id, task_type:taskModalType, title:checklistDraftItems[i], done:false, sort_order:i});
+    }
+  }
   renderAll();
   showBanner(taskModalType==='work'?'w-banner':'p-banner', taskModalType==='work'?'w-banner-txt':'p-banner-txt', 'Task added — "'+title+'"');
 }
