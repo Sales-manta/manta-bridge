@@ -4,17 +4,22 @@ on:
   repository_dispatch:
     types: [query-item]
 
+permissions:
+  contents: write
+
 jobs:
   query-item:
     runs-on: ubuntu-latest
     steps:
-      - name: Query Supabase and output result
+      - uses: actions/checkout@v4
+      - name: Query Supabase and write result to file
         uses: actions/github-script@v7
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         with:
           script: |
+            const fs = require('fs');
             const table = context.payload.client_payload.table;
             const queryString = context.payload.client_payload.query || '';
             const url = `${process.env.SUPABASE_URL}/rest/v1/${table}?${queryString}`;
@@ -24,7 +29,12 @@ jobs:
                 'Authorization': `Bearer ${process.env.SUPABASE_KEY}`,
               }
             });
-            const result = await res.json();
-            console.log('QUERY_RESULT_START');
-            console.log(JSON.stringify(result));
-            console.log('QUERY_RESULT_END');
+            const result = await res.text();
+            fs.writeFileSync('query_result.json', result);
+      - name: Commit result file
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add query_result.json
+          git commit -m "Update query result" || echo "No changes"
+          git push
