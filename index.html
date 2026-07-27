@@ -365,9 +365,9 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
           </div>
         </div>
         <div>
-          <div class="sec-hdr"><span class="sec-title">Projects</span><button class="sec-link" onclick="sp('projects')">View all</button></div>
-          <div class="proj-grid" id="home-proj-grid"></div>
-          <div style="margin-top:16px">
+          <div class="sec-hdr"><span class="sec-title">🔔 Reminders</span><button class="sec-link" onclick="sp('reminders')">View all</button></div>
+          <div class="task-panel" id="home-reminders-list" style="margin-bottom:16px"></div>
+          <div style="margin-top:4px">
             <div class="sec-hdr"><span class="sec-title">Tasks</span><div style="display:flex;gap:10px"><button class="sec-link" onclick="sp('work')">Work</button><button class="sec-link" onclick="sp('personal')">Personal</button></div></div>
             <div class="task-panel">
               <div class="task-tabs">
@@ -397,8 +397,8 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
             <div class="task-panel" id="home-events-list"></div>
           </div>
           <div>
-            <div class="sec-hdr" style="margin-bottom:12px"><span class="sec-title">🔔 Reminders</span><button class="sec-link" onclick="sp('reminders')">View all</button></div>
-            <div class="task-panel" id="home-reminders-list"></div>
+            <div class="sec-hdr" style="margin-bottom:12px"><span class="sec-title">Projects</span><button class="sec-link" onclick="sp('projects')">View all</button></div>
+            <div class="proj-grid" id="home-proj-grid"></div>
           </div>
         </div>
       </div>
@@ -412,15 +412,37 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
       </div>
       <div class="banner banner-green" id="rem-banner"><svg><use href="#ic-circle-check"/></svg><span id="rem-banner-txt"></span></div>
       <div class="two-col" style="margin-top:0;align-items:start">
-        <div>
-          <div class="task-panel" id="rem-list"></div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div class="sec-hdr" style="margin-bottom:10px">
+              <span class="sec-title" style="display:flex;align-items:center;gap:8px">
+                <span style="width:10px;height:10px;border-radius:50%;background:#F35900;display:inline-block"></span>
+                Digby's Reminders
+              </span>
+              <button class="sec-link" onclick="openReminderFor('digby')">+ Add</button>
+            </div>
+            <div class="task-panel" id="rem-digby-list"></div>
+          </div>
+          <div>
+            <div class="sec-hdr" style="margin-bottom:10px">
+              <span class="sec-title" style="display:flex;align-items:center;gap:8px">
+                <span style="width:10px;height:10px;border-radius:50%;background:#6D7636;display:inline-block"></span>
+                My Reminders
+              </span>
+              <button class="sec-link" onclick="openReminderFor('kennedy')">+ Add</button>
+            </div>
+            <div class="task-panel" id="rem-kennedy-list"></div>
+          </div>
         </div>
         <div>
           <div class="sec-hdr" style="margin-bottom:12px"><span class="sec-title">Reminder Calendar</span></div>
           <div class="cal-wrap">
             <div class="cal-nav"><button class="cal-nav-btn" onclick="cm(-1)"><svg><use href="#ic-chevron-left"/></svg></button><div class="cal-month" id="cal-title-rem"></div><button class="cal-nav-btn" onclick="cm(1)"><svg><use href="#ic-chevron-right"/></svg></button></div>
             <div class="cal-grid" id="cal-rem"></div>
-            <div class="cal-legend"><div class="leg"><div class="leg-dot" style="background:#F35900"></div>Reminder</div></div>
+            <div class="cal-legend">
+              <div class="leg"><div class="leg-dot" style="background:#F35900"></div>Digby</div>
+              <div class="leg"><div class="leg-dot" style="background:#6D7636"></div>Mine</div>
+            </div>
           </div>
         </div>
       </div>
@@ -628,7 +650,12 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
 <div class="modal-ov" id="reminder-modal">
   <div class="modal">
     <h3>Add reminder</h3>
-    <span class="form-label" style="margin-top:0">Reminder</span>
+    <span class="form-label" style="margin-top:0">For</span>
+    <select id="rem-owner">
+      <option value="kennedy">My reminder</option>
+      <option value="digby">Digby's reminder</option>
+    </select>
+    <span class="form-label">Reminder</span>
     <input type="text" id="rem-title" placeholder="What do you need to be reminded of?">
     <span class="form-label">Date (optional)</span>
     <input type="date" id="rem-date">
@@ -1003,8 +1030,9 @@ function rCal(gridId,titleId,remindersOnly=false){
     const isT=d===TODAY.getDate()&&calMonth===TODAY.getMonth()&&calYear===TODAY.getFullYear();
     const ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     if(remindersOnly){
-      const hasRem=reminders.some(r=>r.due_date===ds&&!r.done);
-      grid.innerHTML+=`<div class="cd${isT?' today':''}">${d}${hasRem?'<div class="dot-row"><div class="dot" style="background:#F35900"></div></div>':''}</div>`;
+      const hasDigby=reminders.some(r=>r.due_date===ds&&!r.done&&r.owner==='digby');
+      const hasKennedy=reminders.some(r=>r.due_date===ds&&!r.done&&r.owner==='kennedy');
+      grid.innerHTML+=`<div class="cd${isT?' today':''}">${d}${(hasDigby||hasKennedy)?`<div class="dot-row">${hasDigby?'<div class="dot" style="background:#F35900"></div>':''}${hasKennedy?'<div class="dot" style="background:#6D7636"></div>':''}</div>`:''}</div>`;
     } else {
       const wD=events.some(e=>e.date===ds&&e.type==='work');
       const pD=events.some(e=>e.date===ds&&e.type==='personal');
@@ -1424,6 +1452,7 @@ function openModal(id,type){
     setTimeout(()=>document.getElementById('em-title').focus(),50);
   }
   if(id==='reminder-modal'){
+    document.getElementById('rem-owner').value='kennedy';
     document.getElementById('rem-title').value='';
     document.getElementById('rem-date').value='';
     document.getElementById('rem-time').value='';
@@ -1717,29 +1746,33 @@ function updateReminderTz(){
   if(converted) el.innerHTML=`<span style="background:#E8ECD8;color:#42421E;padding:2px 8px;border-radius:10px;font-weight:500">= ${converted} ${TZ_LABELS[otherTz]||otherTz}</span>`;
 }
 
-function rReminders(){
-  const el=document.getElementById('rem-list'); if(!el)return;
+function openReminderFor(owner){
+  openModal('reminder-modal');
+  document.getElementById('rem-owner').value=owner;
+}
+
+function renderReminderList(elId, owner){
+  const el=document.getElementById(elId); if(!el)return;
   const td=TODAY.toISOString().split('T')[0];
-  const list=[...reminders].filter(r=>!r.done).sort((a,b)=>{
+  const list=[...reminders].filter(r=>r.owner===owner).sort((a,b)=>{
+    if(a.done!==b.done) return a.done?1:-1;
     if(a.due_date&&b.due_date) return a.due_date.localeCompare(b.due_date);
-    if(a.due_date) return -1;
-    if(b.due_date) return 1;
-    return 0;
+    if(a.due_date) return -1; if(b.due_date) return 1; return 0;
   });
-  const done=reminders.filter(r=>r.done);
-  if(!list.length&&!done.length){el.innerHTML='<div class="empty-state"><svg><use href="#ic-bell"/></svg>No reminders yet.</div>';return;}
-  el.innerHTML=[...list,...done].map(r=>{
+  if(!list.length){el.innerHTML=`<div class="empty-state">No reminders.</div>`;return;}
+  const dotColor=owner==='digby'?'#F35900':'#6D7636';
+  el.innerHTML=list.map(r=>{
     const isOverdue=r.due_date&&r.due_date<td&&!r.done;
     const tz=r.timezone||'Australia/Perth';
     const otherTz=OTHER_TZ[tz]||'Australia/Perth';
-    const timeStr=r.due_time?`${r.due_time} <span style="opacity:.7">${TZ_LABELS[tz]||tz}</span>${convertTime(r.due_time,r.due_date,tz,otherTz)?` · ${convertTime(r.due_time,r.due_date,tz,otherTz)} <span style="opacity:.7">${TZ_LABELS[otherTz]||otherTz}</span>`:''}` : '';
+    const converted=r.due_time&&r.due_date?convertTime(r.due_time,r.due_date,tz,otherTz):null;
     return`<div class="task-item">
-      <div class="tck${r.done?' done':''}" onclick="toggleReminder(${r.id})" style="cursor:pointer"><svg><use href="#ic-check"/></svg></div>
+      <div class="tck${r.done?' done':''}" onclick="toggleReminder(${r.id})" style="cursor:pointer;border-color:${dotColor}"><svg><use href="#ic-check"/></svg></div>
       <div class="tt" style="flex:1">
         <div class="ttitle${r.done?' done':''}" style="${isOverdue?'color:var(--red)':''}">${r.title}${isOverdue?' <span style="font-size:10px;background:var(--red-light);color:var(--red);padding:1px 6px;border-radius:10px;font-weight:500">Overdue</span>':''}</div>
-        <div class="tmeta" style="flex-wrap:wrap;gap:4px">
+        <div class="tmeta">
           ${r.due_date?`<span style="font-size:10px;color:var(--text3)">${r.due_date}</span>`:''}
-          ${timeStr?`<span style="font-size:10px;color:var(--text2)">${timeStr}</span>`:''}
+          ${r.due_time?`<span style="font-size:10px;color:var(--text2)">${r.due_time} <span style="opacity:.7">${TZ_LABELS[tz]||tz}</span>${converted?` · ${converted} <span style="opacity:.7">${TZ_LABELS[otherTz]}</span>`:''}</span>`:''}
           ${r.notes?`<span style="font-size:10px;color:var(--text3)">${r.notes}</span>`:''}
         </div>
       </div>
@@ -1748,27 +1781,32 @@ function rReminders(){
   }).join('');
 }
 
+function rReminders(){
+  renderReminderList('rem-digby-list','digby');
+  renderReminderList('rem-kennedy-list','kennedy');
+}
+
 function rHomeReminders(){
   const el=document.getElementById('home-reminders-list'); if(!el)return;
   const td=TODAY.toISOString().split('T')[0];
   const upcoming=reminders.filter(r=>!r.done&&(r.due_date>=td||!r.due_date)).sort((a,b)=>{
     if(a.due_date&&b.due_date) return a.due_date.localeCompare(b.due_date);
     if(a.due_date) return -1; if(b.due_date) return 1; return 0;
-  }).slice(0,5);
+  }).slice(0,6);
   if(!upcoming.length){el.innerHTML='<div class="empty-state"><svg><use href="#ic-bell"/></svg>No upcoming reminders.</div>';return;}
   el.innerHTML=upcoming.map(r=>`
     <div class="event-item">
-      <div class="event-dot" style="background:#F35900"></div>
+      <div class="event-dot" style="background:${r.owner==='digby'?'#F35900':'#6D7636'}"></div>
       <div class="event-info">
         <div class="event-title">${r.title}</div>
-        <div class="event-meta">${r.due_date||'No date'}${r.due_time?' · '+r.due_time:''}</div>
+        <div class="event-meta"><span class="tag" style="background:${r.owner==='digby'?'#FEE8D8':'#E8ECD8'};color:${r.owner==='digby'?'#C43D00':'#42421E'}">${r.owner==='digby'?'Digby':'Mine'}</span>${r.due_date?' &nbsp;'+r.due_date:''}${r.due_time?' · '+r.due_time:''}</div>
       </div>
     </div>`).join('');
 }
 
 async function saveReminder(){
   const title=document.getElementById('rem-title').value.trim(); if(!title)return;
-  const rem={title, due_date:document.getElementById('rem-date').value||null, due_time:document.getElementById('rem-time').value||null, timezone:document.getElementById('rem-tz').value, notes:document.getElementById('rem-notes').value||null, done:false};
+  const rem={title, owner:document.getElementById('rem-owner').value, due_date:document.getElementById('rem-date').value||null, due_time:document.getElementById('rem-time').value||null, timezone:document.getElementById('rem-tz').value, notes:document.getElementById('rem-notes').value||null, done:false};
   closeModal('reminder-modal');
   const [saved]=await sbInsert('reminders',rem);
   reminders.unshift(saved);
