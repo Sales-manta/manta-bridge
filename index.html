@@ -274,7 +274,7 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
   <symbol id="ic-circle-check" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
   <symbol id="ic-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
   <symbol id="ic-file" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></symbol>
-  <symbol id="ic-upload" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></symbol>
+  <symbol id="ic-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
 </svg>
 
 <div class="app">
@@ -295,6 +295,7 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
     <div class="nav-divider"></div>
     <div class="nav-section" style="padding-top:4px">
       <div class="nav-item" id="nav-work" onclick="sp('work')"><svg><use href="#ic-checklist"/></svg>Work Tasks</div>
+      <div class="nav-item" id="nav-reminders" onclick="sp('reminders')"><svg><use href="#ic-bell"/></svg>Reminders<span class="nav-badge" id="r-badge" style="display:none"></span></div>
       <div class="nav-item" id="nav-personal" onclick="sp('personal')"><svg><use href="#ic-heart"/></svg>Personal Tasks</div>
       <div class="nav-item" id="nav-calendar" onclick="sp('calendar')"><svg><use href="#ic-calendar"/></svg>Calendar</div>
     </div>
@@ -304,7 +305,7 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
       <div class="nav-item" onclick="openModal('task-modal','work')"><svg><use href="#ic-plus"/></svg>Work task</div>
       <div class="nav-item" onclick="openModal('task-modal','personal')"><svg><use href="#ic-plus"/></svg>Personal task</div>
       <div class="nav-item" onclick="openModal('event-modal')"><svg><use href="#ic-calendar-plus"/></svg>Calendar event</div>
-      <div class="nav-item" onclick="openProjModal()"><svg><use href="#ic-building"/></svg>New project</div>
+      <div class="nav-item" onclick="openModal('reminder-modal')"><svg><use href="#ic-bell"/></svg>Add reminder</div>
     </div>
     <div class="search-bar">
       <div class="search-bar-label">Search</div>
@@ -343,9 +344,10 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
           </div>
         </div>
       </div>
-      <div class="stats-grid">
+      <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
         <div class="stat-card"><div class="stat-label">Work Tasks</div><div class="stat-val" id="s-work">0</div><div class="stat-sub">outstanding</div></div>
         <div class="stat-card"><div class="stat-label">Personal Tasks</div><div class="stat-val" id="s-pers">0</div><div class="stat-sub">outstanding</div></div>
+        <div class="stat-card"><div class="stat-label">Reminders</div><div class="stat-val" id="s-reminders" style="color:#F35900">0</div><div class="stat-sub">upcoming</div></div>
         <div class="stat-card"><div class="stat-label">Projects</div><div class="stat-val" id="s-jobs">0</div><div class="stat-sub">active</div></div>
         <div class="stat-card"><div class="stat-label">Fathom Queue</div><div class="stat-val" id="s-fathom" style="color:#6D7636">0</div><div class="stat-sub">awaiting approval</div></div>
       </div>
@@ -389,9 +391,37 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
             <div class="cal-legend"><div class="leg"><div class="leg-dot" style="background:#2A7BC0"></div>Work</div><div class="leg"><div class="leg-dot" style="background:#F35900"></div>Personal</div></div>
           </div>
         </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div class="sec-hdr" style="margin-bottom:12px"><span class="sec-title">Upcoming Events</span><button class="sec-link" onclick="openModal('event-modal')">+ Add</button></div>
+            <div class="task-panel" id="home-events-list"></div>
+          </div>
+          <div>
+            <div class="sec-hdr" style="margin-bottom:12px"><span class="sec-title">🔔 Reminders</span><button class="sec-link" onclick="sp('reminders')">View all</button></div>
+            <div class="task-panel" id="home-reminders-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REMINDERS -->
+    <div class="page" id="page-reminders">
+      <div class="page-hdr" style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div><div class="page-title">Reminders</div><div class="page-sub">Time-sensitive items with Perth time</div></div>
+        <button class="btn-add" onclick="openModal('reminder-modal')"><svg><use href="#ic-plus"/></svg>Add reminder</button>
+      </div>
+      <div class="banner banner-green" id="rem-banner"><svg><use href="#ic-circle-check"/></svg><span id="rem-banner-txt"></span></div>
+      <div class="two-col" style="margin-top:0;align-items:start">
         <div>
-          <div class="sec-hdr" style="margin-bottom:12px"><span class="sec-title">Upcoming Events</span><button class="sec-link" onclick="openModal('event-modal')">+ Add</button></div>
-          <div class="task-panel" id="home-events-list"></div>
+          <div class="task-panel" id="rem-list"></div>
+        </div>
+        <div>
+          <div class="sec-hdr" style="margin-bottom:12px"><span class="sec-title">Reminder Calendar</span></div>
+          <div class="cal-wrap">
+            <div class="cal-nav"><button class="cal-nav-btn" onclick="cm(-1)"><svg><use href="#ic-chevron-left"/></svg></button><div class="cal-month" id="cal-title-rem"></div><button class="cal-nav-btn" onclick="cm(1)"><svg><use href="#ic-chevron-right"/></svg></button></div>
+            <div class="cal-grid" id="cal-rem"></div>
+            <div class="cal-legend"><div class="leg"><div class="leg-dot" style="background:#F35900"></div>Reminder</div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -594,6 +624,36 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
   </div>
 </div>
 
+<!-- REMINDER MODAL -->
+<div class="modal-ov" id="reminder-modal">
+  <div class="modal">
+    <h3>Add reminder</h3>
+    <span class="form-label" style="margin-top:0">Reminder</span>
+    <input type="text" id="rem-title" placeholder="What do you need to be reminded of?">
+    <span class="form-label">Date (optional)</span>
+    <input type="date" id="rem-date">
+    <span class="form-label">Time & timezone (optional)</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="time" id="rem-time" style="flex:1" oninput="updateReminderTz()">
+      <select id="rem-tz" style="flex:1" onchange="updateReminderTz()">
+        <option value="Australia/Perth">Perth (AWST)</option>
+        <option value="Europe/Berlin" selected>Germany (CET/CEST)</option>
+        <option value="Europe/London">London (GMT/BST)</option>
+        <option value="America/New_York">New York (ET)</option>
+        <option value="Asia/Dubai">Dubai (GST)</option>
+        <option value="Asia/Singapore">Singapore (SGT)</option>
+      </select>
+    </div>
+    <div id="rem-second-tz" style="font-size:11px;color:var(--text3);margin-top:5px;min-height:16px"></div>
+    <span class="form-label">Notes (optional)</span>
+    <textarea id="rem-notes" placeholder="Any extra detail..."></textarea>
+    <div class="modal-btns">
+      <button class="btn-ghost" onclick="closeModal('reminder-modal')">Cancel</button>
+      <button class="btn-primary" onclick="saveReminder()">Save reminder</button>
+    </div>
+  </div>
+</div>
+
 <!-- TASK DETAIL MODAL -->
 <div class="modal-ov" id="task-detail-modal">
   <div class="modal" style="width:420px">
@@ -728,6 +788,7 @@ let homeStatus='todo', homeType='all', workTab='todo', persTab='todo';
 let taskModalType='work', activeProjId=null, activeProjTab='tasks';
 let workTasks=[], personalTasks=[], projects=[], events=[], fathomItems=[], meetings=[];
 let checklistCounts={}, checklistItemsCache={};
+let reminders=[];
 
 const priOrder={High:0,Medium:1,Low:2};
 const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -756,7 +817,7 @@ async function init(){
 }
 
 async function loadAll(){
-  const [wt, pt, pr, ev, mt, fi, ci] = await Promise.all([
+  const [wt, pt, pr, ev, mt, fi, ci, rem] = await Promise.all([
     sbGet('work_tasks'),
     sbGet('personal_tasks'),
     sbGet('projects'),
@@ -764,6 +825,7 @@ async function loadAll(){
     sbGet('meetings'),
     sbGet('fathom_items'),
     sbGet('task_checklist_items'),
+    sbGet('reminders'),
   ]);
   workTasks = wt || [];
   personalTasks = pt || [];
@@ -771,6 +833,7 @@ async function loadAll(){
   events = ev || [];
   meetings = mt || [];
   fathomItems = fi || [];
+  reminders = rem || [];
 
   const items = ci || [];
   checklistItemsCache = {};
@@ -877,7 +940,7 @@ function wxIcon(c){if(c===0)return'☀️';if(c<=2)return'⛅';if(c===3)return'�
 function wxDesc(c){if(c===0)return'Clear sky';if(c===1)return'Mainly clear';if(c===2)return'Partly cloudy';if(c===3)return'Overcast';if(c<=49)return'Foggy';if(c<=65)return'Rain';if(c<=77)return'Snow';if(c<=82)return'Showers';return'Thunderstorm';}
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
-function renderAll(){rStats();rAssistant();rProjGrids();rCal('cal-home','cal-title-home');rCal('cal-full','cal-title-full');rht();rwt();rpt();rFathom();rMeetingArchive();rCalEvents();rHomeEvents();}
+function renderAll(){rStats();rAssistant();rProjGrids();rCal('cal-home','cal-title-home');rCal('cal-full','cal-title-full');rCal('cal-rem','cal-title-rem',true);rht();rwt();rpt();rFathom();rMeetingArchive();rCalEvents();rHomeEvents();rReminders();rHomeReminders();}
 
 function rStats(){
   document.getElementById('s-work').textContent = workTasks.filter(t=>t.status==='todo').length;
@@ -888,6 +951,11 @@ function rStats(){
   const fb = document.getElementById('f-badge');
   fb.textContent=pf>0?pf:''; fb.style.display=pf>0?'':'none';
   document.getElementById('f-pending-count').textContent = pf+' item'+(pf!==1?'s':'')+' pending';
+  const td=TODAY.toISOString().split('T')[0];
+  const pr=reminders.filter(r=>!r.done&&(r.due_date>=td||!r.due_date)).length;
+  document.getElementById('s-reminders').textContent=pr;
+  const rb=document.getElementById('r-badge');
+  rb.textContent=pr>0?pr:''; rb.style.display=pr>0?'':'none';
 }
 
 function rAssistant(){
@@ -922,7 +990,7 @@ async function deleteProject(id){
   projects=projects.filter(p=>p.id!==id); renderAll();
 }
 
-function rCal(gridId,titleId){
+function rCal(gridId,titleId,remindersOnly=false){
   const title=document.getElementById(titleId), grid=document.getElementById(gridId);
   if(!title||!grid)return;
   title.textContent=months[calMonth]+' '+calYear;
@@ -934,14 +1002,19 @@ function rCal(gridId,titleId){
   for(let d=1;d<=dim;d++){
     const isT=d===TODAY.getDate()&&calMonth===TODAY.getMonth()&&calYear===TODAY.getFullYear();
     const ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    const wD=events.some(e=>e.date===ds&&e.type==='work');
-    const pD=events.some(e=>e.date===ds&&e.type==='personal');
-    grid.innerHTML+=`<div class="cd${isT?' today':''}" onclick="clickDay('${ds}')" style="cursor:pointer" title="Add event on ${ds}">${d}${(wD||pD)?`<div class="dot-row">${wD?'<div class="dot dot-w"></div>':''}${pD?'<div class="dot dot-p"></div>':''}</div>`:''}</div>`;
+    if(remindersOnly){
+      const hasRem=reminders.some(r=>r.due_date===ds&&!r.done);
+      grid.innerHTML+=`<div class="cd${isT?' today':''}">${d}${hasRem?'<div class="dot-row"><div class="dot" style="background:#F35900"></div></div>':''}</div>`;
+    } else {
+      const wD=events.some(e=>e.date===ds&&e.type==='work');
+      const pD=events.some(e=>e.date===ds&&e.type==='personal');
+      grid.innerHTML+=`<div class="cd${isT?' today':''}" onclick="clickDay('${ds}')" style="cursor:pointer" title="Add event on ${ds}">${d}${(wD||pD)?`<div class="dot-row">${wD?'<div class="dot dot-w"></div>':''}${pD?'<div class="dot dot-p"></div>':''}</div>`:''}</div>`;
+    }
   }
-  const rem=42-first-dim;
-  for(let i=1;i<=rem;i++)grid.innerHTML+=`<div class="cd om">${i}</div>`;
+  const remaining=42-first-dim;
+  for(let i=1;i<=remaining;i++)grid.innerHTML+=`<div class="cd om">${i}</div>`;
 }
-function cm(d){calMonth+=d;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}rCal('cal-home','cal-title-home');rCal('cal-full','cal-title-full');document.getElementById('cal-page-sub').textContent=months[calMonth]+' '+calYear+' — Perth, WA';}
+function cm(d){calMonth+=d;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}rCal('cal-home','cal-title-home');rCal('cal-full','cal-title-full');rCal('cal-rem','cal-title-rem',true);document.getElementById('cal-page-sub').textContent=months[calMonth]+' '+calYear+' — Perth, WA';}
 
 function clickDay(dateStr){
   // If there are events on this day, show the first one for editing; otherwise open add event modal pre-filled
@@ -1350,6 +1423,14 @@ function openModal(id,type){
     document.getElementById('em-time').value=''; document.getElementById('em-notes').value='';
     setTimeout(()=>document.getElementById('em-title').focus(),50);
   }
+  if(id==='reminder-modal'){
+    document.getElementById('rem-title').value='';
+    document.getElementById('rem-date').value='';
+    document.getElementById('rem-time').value='';
+    document.getElementById('rem-notes').value='';
+    document.getElementById('rem-second-tz').textContent='';
+    setTimeout(()=>document.getElementById('rem-title').focus(),50);
+  }
   document.getElementById(id).classList.add('open');
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
@@ -1624,6 +1705,90 @@ function switchMeetingTab(id,tab,el){
   el.classList.add('active');
 }
 
+// ── REMINDERS ─────────────────────────────────────────────────────────────────
+function updateReminderTz(){
+  const time=document.getElementById('rem-time').value;
+  const date=document.getElementById('rem-date').value;
+  const tz=document.getElementById('rem-tz').value;
+  const el=document.getElementById('rem-second-tz');
+  if(!time||!date){el.textContent='';return;}
+  const otherTz=OTHER_TZ[tz]||'Australia/Perth';
+  const converted=convertTime(time,date,tz,otherTz);
+  if(converted) el.innerHTML=`<span style="background:#E8ECD8;color:#42421E;padding:2px 8px;border-radius:10px;font-weight:500">= ${converted} ${TZ_LABELS[otherTz]||otherTz}</span>`;
+}
+
+function rReminders(){
+  const el=document.getElementById('rem-list'); if(!el)return;
+  const td=TODAY.toISOString().split('T')[0];
+  const list=[...reminders].filter(r=>!r.done).sort((a,b)=>{
+    if(a.due_date&&b.due_date) return a.due_date.localeCompare(b.due_date);
+    if(a.due_date) return -1;
+    if(b.due_date) return 1;
+    return 0;
+  });
+  const done=reminders.filter(r=>r.done);
+  if(!list.length&&!done.length){el.innerHTML='<div class="empty-state"><svg><use href="#ic-bell"/></svg>No reminders yet.</div>';return;}
+  el.innerHTML=[...list,...done].map(r=>{
+    const isOverdue=r.due_date&&r.due_date<td&&!r.done;
+    const tz=r.timezone||'Australia/Perth';
+    const otherTz=OTHER_TZ[tz]||'Australia/Perth';
+    const timeStr=r.due_time?`${r.due_time} <span style="opacity:.7">${TZ_LABELS[tz]||tz}</span>${convertTime(r.due_time,r.due_date,tz,otherTz)?` · ${convertTime(r.due_time,r.due_date,tz,otherTz)} <span style="opacity:.7">${TZ_LABELS[otherTz]||otherTz}</span>`:''}` : '';
+    return`<div class="task-item">
+      <div class="tck${r.done?' done':''}" onclick="toggleReminder(${r.id})" style="cursor:pointer"><svg><use href="#ic-check"/></svg></div>
+      <div class="tt" style="flex:1">
+        <div class="ttitle${r.done?' done':''}" style="${isOverdue?'color:var(--red)':''}">${r.title}${isOverdue?' <span style="font-size:10px;background:var(--red-light);color:var(--red);padding:1px 6px;border-radius:10px;font-weight:500">Overdue</span>':''}</div>
+        <div class="tmeta" style="flex-wrap:wrap;gap:4px">
+          ${r.due_date?`<span style="font-size:10px;color:var(--text3)">${r.due_date}</span>`:''}
+          ${timeStr?`<span style="font-size:10px;color:var(--text2)">${timeStr}</span>`:''}
+          ${r.notes?`<span style="font-size:10px;color:var(--text3)">${r.notes}</span>`:''}
+        </div>
+      </div>
+      <button class="tdel" onclick="deleteReminder(${r.id})"><svg><use href="#ic-trash"/></svg></button>
+    </div>`;
+  }).join('');
+}
+
+function rHomeReminders(){
+  const el=document.getElementById('home-reminders-list'); if(!el)return;
+  const td=TODAY.toISOString().split('T')[0];
+  const upcoming=reminders.filter(r=>!r.done&&(r.due_date>=td||!r.due_date)).sort((a,b)=>{
+    if(a.due_date&&b.due_date) return a.due_date.localeCompare(b.due_date);
+    if(a.due_date) return -1; if(b.due_date) return 1; return 0;
+  }).slice(0,5);
+  if(!upcoming.length){el.innerHTML='<div class="empty-state"><svg><use href="#ic-bell"/></svg>No upcoming reminders.</div>';return;}
+  el.innerHTML=upcoming.map(r=>`
+    <div class="event-item">
+      <div class="event-dot" style="background:#F35900"></div>
+      <div class="event-info">
+        <div class="event-title">${r.title}</div>
+        <div class="event-meta">${r.due_date||'No date'}${r.due_time?' · '+r.due_time:''}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function saveReminder(){
+  const title=document.getElementById('rem-title').value.trim(); if(!title)return;
+  const rem={title, due_date:document.getElementById('rem-date').value||null, due_time:document.getElementById('rem-time').value||null, timezone:document.getElementById('rem-tz').value, notes:document.getElementById('rem-notes').value||null, done:false};
+  closeModal('reminder-modal');
+  const [saved]=await sbInsert('reminders',rem);
+  reminders.unshift(saved);
+  renderAll();
+  showBanner('rem-banner','rem-banner-txt','Reminder added — "'+title+'"');
+}
+
+async function toggleReminder(id){
+  const r=reminders.find(r=>r.id===id); if(!r)return;
+  r.done=!r.done;
+  await sbUpdate('reminders',id,{done:r.done});
+  renderAll();
+}
+
+async function deleteReminder(id){
+  await sbDelete('reminders',id);
+  reminders=reminders.filter(r=>r.id!==id);
+  renderAll();
+}
+
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 function sp(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1635,6 +1800,7 @@ function sp(name){
   if(name==='fathom')rFathom();
   if(name==='work')rwt();
   if(name==='personal')rpt();
+  if(name==='reminders'){rReminders();rCal('cal-rem','cal-title-rem',true);}
 }
 
 // ── AI BAR ────────────────────────────────────────────────────────────────────
