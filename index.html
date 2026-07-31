@@ -649,12 +649,17 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
 <!-- REMINDER MODAL -->
 <div class="modal-ov" id="reminder-modal">
   <div class="modal">
-    <h3>Add reminder</h3>
+    <h3 id="rem-modal-title">Add reminder</h3>
     <span class="form-label" style="margin-top:0">For</span>
     <select id="rem-owner">
       <option value="kennedy">My reminder</option>
       <option value="digby">Digby's reminder</option>
     </select>
+    <span class="form-label">Type</span>
+    <div style="display:flex;gap:6px">
+      <button type="button" id="rem-type-simple" class="ttab active" style="flex:1;justify-content:center;display:flex" onclick="setReminderType('simple')">Simple</button>
+      <button type="button" id="rem-type-checklist" class="ttab" style="flex:1;justify-content:center;display:flex" onclick="setReminderType('checklist')">Checklist</button>
+    </div>
     <span class="form-label">Reminder</span>
     <input type="text" id="rem-title" placeholder="What do you need to be reminded of?">
     <span class="form-label">Date (optional)</span>
@@ -672,11 +677,69 @@ html,body{height:100%;font-family:'Inter',sans-serif;font-size:13px;background:v
       </select>
     </div>
     <div id="rem-second-tz" style="font-size:11px;color:var(--text3);margin-top:5px;min-height:16px"></div>
-    <span class="form-label">Notes (optional)</span>
-    <textarea id="rem-notes" placeholder="Any extra detail..."></textarea>
+    <div id="rem-notes-section">
+      <span class="form-label">Notes (optional)</span>
+      <textarea id="rem-notes" placeholder="Any extra detail..."></textarea>
+    </div>
+    <div id="rem-checklist-section" style="display:none">
+      <span class="form-label">Checklist items</span>
+      <div id="rem-checklist-draft-list"></div>
+      <div class="inline-add" style="margin-top:6px">
+        <input type="text" id="rem-checklist-new" placeholder="Add an item..." onkeydown="if(event.key==='Enter'){event.preventDefault();addReminderChecklistDraft();}">
+        <button type="button" onclick="addReminderChecklistDraft()">Add</button>
+      </div>
+    </div>
     <div class="modal-btns">
       <button class="btn-ghost" onclick="closeModal('reminder-modal')">Cancel</button>
-      <button class="btn-primary" onclick="saveReminder()">Save reminder</button>
+      <button class="btn-primary" id="rem-save-btn" onclick="saveReminder()">Save reminder</button>
+    </div>
+  </div>
+</div>
+
+<!-- REMINDER EDIT MODAL -->
+<div class="modal-ov" id="reminder-edit-modal">
+  <div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3>Edit reminder</h3>
+      <button onclick="closeModal('reminder-edit-modal')" style="background:none;border:none;cursor:pointer;color:var(--text3)"><svg width="18" height="18" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <span class="form-label" style="margin-top:0">For</span>
+    <select id="redit-owner">
+      <option value="kennedy">My reminder</option>
+      <option value="digby">Digby's reminder</option>
+    </select>
+    <span class="form-label">Reminder</span>
+    <input type="text" id="redit-title">
+    <span class="form-label">Date (optional)</span>
+    <input type="date" id="redit-date">
+    <span class="form-label">Time & timezone (optional)</span>
+    <div style="display:flex;gap:8px">
+      <input type="time" id="redit-time" style="flex:1">
+      <select id="redit-tz" style="flex:1">
+        <option value="Australia/Perth">Perth (AWST)</option>
+        <option value="Europe/Berlin">Germany (CET/CEST)</option>
+        <option value="Europe/London">London (GMT/BST)</option>
+        <option value="America/New_York">New York (ET)</option>
+        <option value="Asia/Dubai">Dubai (GST)</option>
+        <option value="Asia/Singapore">Singapore (SGT)</option>
+      </select>
+    </div>
+    <div id="redit-notes-wrap">
+      <span class="form-label">Notes (optional)</span>
+      <textarea id="redit-notes" style="min-height:80px;resize:vertical"></textarea>
+    </div>
+    <div id="redit-checklist-wrap" style="display:none">
+      <span class="form-label">Checklist items</span>
+      <div id="redit-checklist-list"></div>
+      <div class="inline-add" style="margin-top:6px">
+        <input type="text" id="redit-checklist-new" placeholder="Add an item..." onkeydown="if(event.key==='Enter'){event.preventDefault();addReminderChecklistItemLive();}">
+        <button type="button" onclick="addReminderChecklistItemLive()">Add</button>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-ghost" style="color:var(--red);border-color:var(--red)" onclick="deleteReminderFromEdit()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('reminder-edit-modal')">Cancel</button>
+      <button class="btn-primary" onclick="saveReminderEdit()">Save changes</button>
     </div>
   </div>
 </div>
@@ -844,7 +907,7 @@ async function init(){
 }
 
 async function loadAll(){
-  const [wt, pt, pr, ev, mt, fi, ci, rem] = await Promise.all([
+  const [wt, pt, pr, ev, mt, fi, ci, rem, rci] = await Promise.all([
     sbGet('work_tasks'),
     sbGet('personal_tasks'),
     sbGet('projects'),
@@ -853,6 +916,7 @@ async function loadAll(){
     sbGet('fathom_items'),
     sbGet('task_checklist_items'),
     sbGet('reminders'),
+    sbGet('reminder_checklist_items'),
   ]);
   workTasks = wt || [];
   personalTasks = pt || [];
@@ -861,6 +925,17 @@ async function loadAll(){
   meetings = mt || [];
   fathomItems = fi || [];
   reminders = rem || [];
+
+  // Build reminder checklist cache
+  reminderChecklistCache = {};
+  (rci||[]).forEach(item=>{
+    if(!reminderChecklistCache[item.reminder_id]) reminderChecklistCache[item.reminder_id]={items:[],done:0,total:0};
+    reminderChecklistCache[item.reminder_id].items.push(item);
+  });
+  Object.keys(reminderChecklistCache).forEach(rid=>{
+    const items=reminderChecklistCache[rid].items.sort((a,b)=>(a.sort_order??0)-(b.sort_order??0));
+    reminderChecklistCache[rid]={items,done:items.filter(i=>i.done).length,total:items.length};
+  });
 
   const items = ci || [];
   checklistItemsCache = {};
@@ -1452,12 +1527,18 @@ function openModal(id,type){
     setTimeout(()=>document.getElementById('em-title').focus(),50);
   }
   if(id==='reminder-modal'){
+    editingReminderId = null;
+    reminderChecklistDraft = [];
+    document.getElementById('rem-modal-title').textContent = 'Add reminder';
+    document.getElementById('rem-save-btn').textContent = 'Save reminder';
     document.getElementById('rem-owner').value='kennedy';
     document.getElementById('rem-title').value='';
     document.getElementById('rem-date').value='';
     document.getElementById('rem-time').value='';
     document.getElementById('rem-notes').value='';
     document.getElementById('rem-second-tz').textContent='';
+    renderReminderChecklistDraft();
+    setReminderType('simple');
     setTimeout(()=>document.getElementById('rem-title').focus(),50);
   }
   document.getElementById(id).classList.add('open');
@@ -1735,6 +1816,35 @@ function switchMeetingTab(id,tab,el){
 }
 
 // ── REMINDERS ─────────────────────────────────────────────────────────────────
+let editingReminderId = null;
+let reminderChecklistDraft = [];
+let reminderChecklistCache = {};
+let completedReminderVisible = {digby: false, kennedy: false};
+
+function setReminderType(mode){
+  document.getElementById('rem-type-simple').classList.toggle('active', mode==='simple');
+  document.getElementById('rem-type-checklist').classList.toggle('active', mode==='checklist');
+  document.getElementById('rem-notes-section').style.display = mode==='simple'?'block':'none';
+  document.getElementById('rem-checklist-section').style.display = mode==='checklist'?'block':'none';
+}
+
+function renderReminderChecklistDraft(){
+  const el=document.getElementById('rem-checklist-draft-list'); if(!el)return;
+  if(!reminderChecklistDraft.length){el.innerHTML='';return;}
+  el.innerHTML=reminderChecklistDraft.map((item,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span style="flex:1">${item}</span>
+      <button type="button" onclick="reminderChecklistDraft.splice(${i},1);renderReminderChecklistDraft()" style="background:none;border:none;cursor:pointer;color:var(--text3)"><svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`).join('');
+}
+
+function addReminderChecklistDraft(){
+  const inp=document.getElementById('rem-checklist-new');
+  const val=inp.value.trim(); if(!val)return;
+  reminderChecklistDraft.push(val); inp.value='';
+  renderReminderChecklistDraft();
+}
+
 function updateReminderTz(){
   const time=document.getElementById('rem-time').value;
   const date=document.getElementById('rem-date').value;
@@ -1751,34 +1861,52 @@ function openReminderFor(owner){
   document.getElementById('rem-owner').value=owner;
 }
 
+function reminderItemHTML(r, dotColor, td){
+  const isOverdue=r.due_date&&r.due_date<td&&!r.done;
+  const tz=r.timezone||'Australia/Perth';
+  const otherTz=OTHER_TZ[tz]||'Australia/Perth';
+  const converted=r.due_time&&r.due_date?convertTime(r.due_time,r.due_date,tz,otherTz):null;
+  const cl=reminderChecklistCache[r.id];
+  const checklistBadge=r.is_checklist&&cl?`<span style="font-size:10px;color:var(--text3);font-weight:500">✓ ${cl.done}/${cl.total}</span>`:'';
+  return`<div class="task-item">
+    <div class="tck${r.done?' done':''}" onclick="toggleReminder(${r.id})" style="cursor:pointer;border-color:${dotColor}"><svg><use href="#ic-check"/></svg></div>
+    <div class="tt" style="flex:1;cursor:pointer" onclick="openReminderEdit(${r.id})">
+      <div class="ttitle${r.done?' done':''}" style="${isOverdue?'color:var(--red)':''}">${r.is_checklist?'<svg width="11" height="11" style="margin-right:3px;vertical-align:-1px" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><polyline points="4 6 5 7 7 5"/><polyline points="4 12 5 13 7 11"/></svg>':''}${r.title}${isOverdue?' <span style="font-size:10px;background:var(--red-light);color:var(--red);padding:1px 6px;border-radius:10px;font-weight:500">Overdue</span>':''}</div>
+      <div class="tmeta">
+        ${r.due_date?`<span style="font-size:10px;color:var(--text3)">${r.due_date}</span>`:''}
+        ${r.due_time?`<span style="font-size:10px;color:var(--text2)">${r.due_time} <span style="opacity:.7">${TZ_LABELS[tz]||tz}</span>${converted?` · ${converted} <span style="opacity:.7">${TZ_LABELS[otherTz]}</span>`:''}</span>`:''}
+        ${checklistBadge}
+        ${r.notes&&!r.is_checklist?`<span style="font-size:10px;color:var(--text3)">${r.notes}</span>`:''}
+      </div>
+    </div>
+    <button class="tdel" onclick="deleteReminder(${r.id})"><svg><use href="#ic-trash"/></svg></button>
+  </div>`;
+}
+
 function renderReminderList(elId, owner){
   const el=document.getElementById(elId); if(!el)return;
   const td=TODAY.toISOString().split('T')[0];
-  const list=[...reminders].filter(r=>r.owner===owner).sort((a,b)=>{
-    if(a.done!==b.done) return a.done?1:-1;
+  const dotColor=owner==='digby'?'#F35900':'#6D7636';
+  const active=[...reminders].filter(r=>r.owner===owner&&!r.done).sort((a,b)=>{
     if(a.due_date&&b.due_date) return a.due_date.localeCompare(b.due_date);
     if(a.due_date) return -1; if(b.due_date) return 1; return 0;
   });
-  if(!list.length){el.innerHTML=`<div class="empty-state">No reminders.</div>`;return;}
-  const dotColor=owner==='digby'?'#F35900':'#6D7636';
-  el.innerHTML=list.map(r=>{
-    const isOverdue=r.due_date&&r.due_date<td&&!r.done;
-    const tz=r.timezone||'Australia/Perth';
-    const otherTz=OTHER_TZ[tz]||'Australia/Perth';
-    const converted=r.due_time&&r.due_date?convertTime(r.due_time,r.due_date,tz,otherTz):null;
-    return`<div class="task-item">
-      <div class="tck${r.done?' done':''}" onclick="toggleReminder(${r.id})" style="cursor:pointer;border-color:${dotColor}"><svg><use href="#ic-check"/></svg></div>
-      <div class="tt" style="flex:1">
-        <div class="ttitle${r.done?' done':''}" style="${isOverdue?'color:var(--red)':''}">${r.title}${isOverdue?' <span style="font-size:10px;background:var(--red-light);color:var(--red);padding:1px 6px;border-radius:10px;font-weight:500">Overdue</span>':''}</div>
-        <div class="tmeta">
-          ${r.due_date?`<span style="font-size:10px;color:var(--text3)">${r.due_date}</span>`:''}
-          ${r.due_time?`<span style="font-size:10px;color:var(--text2)">${r.due_time} <span style="opacity:.7">${TZ_LABELS[tz]||tz}</span>${converted?` · ${converted} <span style="opacity:.7">${TZ_LABELS[otherTz]}</span>`:''}</span>`:''}
-          ${r.notes?`<span style="font-size:10px;color:var(--text3)">${r.notes}</span>`:''}
-        </div>
-      </div>
-      <button class="tdel" onclick="deleteReminder(${r.id})"><svg><use href="#ic-trash"/></svg></button>
-    </div>`;
-  }).join('');
+  const done=[...reminders].filter(r=>r.owner===owner&&r.done);
+  const showCompleted=completedReminderVisible[owner];
+
+  let html='';
+  if(!active.length&&!done.length){html='<div class="empty-state">No reminders.</div>';}
+  else{
+    html=active.map(r=>reminderItemHTML(r,dotColor,td)).join('');
+    if(done.length){
+      html+=`<div onclick="completedReminderVisible['${owner}']=!completedReminderVisible['${owner}'];rReminders()" style="cursor:pointer;padding:8px 0;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px;border-top:1px solid var(--border);margin-top:4px;user-select:none">
+        <svg width="12" height="12" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="transform:rotate(${showCompleted?'90':'0'}deg);transition:transform .2s"><polyline points="9 18 15 12 9 6"/></svg>
+        ${done.length} completed
+      </div>`;
+      if(showCompleted) html+=`<div style="opacity:.55">${done.map(r=>reminderItemHTML(r,dotColor,td)).join('')}</div>`;
+    }
+  }
+  el.innerHTML=html;
 }
 
 function rReminders(){
@@ -1806,12 +1934,28 @@ function rHomeReminders(){
 
 async function saveReminder(){
   const title=document.getElementById('rem-title').value.trim(); if(!title)return;
-  const rem={title, owner:document.getElementById('rem-owner').value, due_date:document.getElementById('rem-date').value||null, due_time:document.getElementById('rem-time').value||null, timezone:document.getElementById('rem-tz').value, notes:document.getElementById('rem-notes').value||null, done:false};
+  const isChecklist=document.getElementById('rem-type-checklist').classList.contains('active');
+  const rem={title, owner:document.getElementById('rem-owner').value, due_date:document.getElementById('rem-date').value||null, due_time:document.getElementById('rem-time').value||null, timezone:document.getElementById('rem-tz').value, notes:isChecklist?null:(document.getElementById('rem-notes').value||null), done:false, is_checklist:isChecklist};
   closeModal('reminder-modal');
   const [saved]=await sbInsert('reminders',rem);
   reminders.unshift(saved);
+  if(isChecklist&&reminderChecklistDraft.length){
+    reminderChecklistCache[saved.id]=[];
+    for(let i=0;i<reminderChecklistDraft.length;i++){
+      const [item]=await sbInsert('reminder_checklist_items',{reminder_id:saved.id,title:reminderChecklistDraft[i],done:false,sort_order:i});
+      reminderChecklistCache[saved.id].push(item);
+    }
+    reminderChecklistCache[saved.id]={items:reminderChecklistCache[saved.id]};
+    rebuildReminderChecklistCount(saved.id);
+  }
   renderAll();
   showBanner('rem-banner','rem-banner-txt','Reminder added — "'+title+'"');
+}
+
+function rebuildReminderChecklistCount(rid){
+  const items=reminderChecklistCache[rid]||[];
+  const arr=Array.isArray(items)?items:(items.items||[]);
+  reminderChecklistCache[rid]={items:arr,done:arr.filter(i=>i.done).length,total:arr.length};
 }
 
 async function toggleReminder(id){
@@ -1824,6 +1968,96 @@ async function toggleReminder(id){
 async function deleteReminder(id){
   await sbDelete('reminders',id);
   reminders=reminders.filter(r=>r.id!==id);
+  renderAll();
+}
+
+// Edit reminder
+function openReminderEdit(id){
+  const r=reminders.find(r=>r.id===id); if(!r)return;
+  editingReminderId=id;
+  document.getElementById('redit-owner').value=r.owner||'kennedy';
+  document.getElementById('redit-title').value=r.title||'';
+  document.getElementById('redit-date').value=r.due_date||'';
+  document.getElementById('redit-time').value=r.due_time||'';
+  document.getElementById('redit-tz').value=r.timezone||'Australia/Perth';
+  document.getElementById('redit-notes').value=r.notes||'';
+  if(r.is_checklist){
+    document.getElementById('redit-notes-wrap').style.display='none';
+    document.getElementById('redit-checklist-wrap').style.display='block';
+    renderReminderEditChecklist(id);
+  } else {
+    document.getElementById('redit-notes-wrap').style.display='block';
+    document.getElementById('redit-checklist-wrap').style.display='none';
+  }
+  document.getElementById('reminder-edit-modal').classList.add('open');
+}
+
+function renderReminderEditChecklist(rid){
+  const el=document.getElementById('redit-checklist-list'); if(!el)return;
+  const cache=reminderChecklistCache[rid];
+  const items=Array.isArray(cache)?cache:(cache?.items||[]);
+  if(!items.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:4px 0">No items yet.</div>';return;}
+  el.innerHTML=items.map(item=>`
+    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <div class="tck${item.done?' done':''}" onclick="toggleReminderChecklistItem(${item.id},${rid})" style="cursor:pointer"><svg><use href="#ic-check"/></svg></div>
+      <span style="flex:1;font-size:13px;${item.done?'text-decoration:line-through;color:var(--text3)':''}">${item.title}</span>
+      <button type="button" onclick="deleteReminderChecklistItem(${item.id},${rid})" style="background:none;border:none;cursor:pointer;color:var(--text3)"><svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+    </div>`).join('');
+}
+
+async function addReminderChecklistItemLive(){
+  const inp=document.getElementById('redit-checklist-new');
+  const val=inp.value.trim(); if(!val||!editingReminderId)return;
+  const cache=reminderChecklistCache[editingReminderId];
+  const items=Array.isArray(cache)?cache:(cache?.items||[]);
+  const [saved]=await sbInsert('reminder_checklist_items',{reminder_id:editingReminderId,title:val,done:false,sort_order:items.length});
+  items.push(saved);
+  reminderChecklistCache[editingReminderId]={items,done:items.filter(i=>i.done).length,total:items.length};
+  inp.value='';
+  renderReminderEditChecklist(editingReminderId);
+  rReminders();
+}
+
+async function toggleReminderChecklistItem(itemId, rid){
+  const cache=reminderChecklistCache[rid];
+  const items=Array.isArray(cache)?cache:(cache?.items||[]);
+  const item=items.find(i=>i.id===itemId); if(!item)return;
+  item.done=!item.done;
+  await sbUpdate('reminder_checklist_items',itemId,{done:item.done});
+  const allDone=items.length>0&&items.every(i=>i.done);
+  reminderChecklistCache[rid]={items,done:items.filter(i=>i.done).length,total:items.length};
+  const r=reminders.find(r=>r.id===rid);
+  if(r&&r.done!==allDone){r.done=allDone;await sbUpdate('reminders',rid,{done:allDone});}
+  renderReminderEditChecklist(rid);
+  rReminders();
+}
+
+async function deleteReminderChecklistItem(itemId, rid){
+  await sbDelete('reminder_checklist_items',itemId);
+  const cache=reminderChecklistCache[rid];
+  const items=(Array.isArray(cache)?cache:(cache?.items||[])).filter(i=>i.id!==itemId);
+  reminderChecklistCache[rid]={items,done:items.filter(i=>i.done).length,total:items.length};
+  renderReminderEditChecklist(rid);
+  rReminders();
+}
+
+async function saveReminderEdit(){
+  if(!editingReminderId)return;
+  const r=reminders.find(r=>r.id===editingReminderId); if(!r)return;
+  const updated={title:document.getElementById('redit-title').value.trim(), owner:document.getElementById('redit-owner').value, due_date:document.getElementById('redit-date').value||null, due_time:document.getElementById('redit-time').value||null, timezone:document.getElementById('redit-tz').value};
+  if(!r.is_checklist) updated.notes=document.getElementById('redit-notes').value||null;
+  if(!updated.title)return;
+  Object.assign(r,updated);
+  await sbUpdate('reminders',editingReminderId,updated);
+  closeModal('reminder-edit-modal');
+  renderAll();
+}
+
+async function deleteReminderFromEdit(){
+  if(!editingReminderId)return;
+  await sbDelete('reminders',editingReminderId);
+  reminders=reminders.filter(r=>r.id!==editingReminderId);
+  closeModal('reminder-edit-modal');
   renderAll();
 }
 
