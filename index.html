@@ -1938,27 +1938,36 @@ async function saveReminder(){
   const title=document.getElementById('rem-title').value.trim(); if(!title)return;
   const isChecklist=document.getElementById('rem-type-checklist').classList.contains('active');
   const rem={title, owner:document.getElementById('rem-owner').value, due_date:document.getElementById('rem-date').value||null, due_time:document.getElementById('rem-time').value||null, timezone:document.getElementById('rem-tz').value, notes:isChecklist?null:(document.getElementById('rem-notes').value||null), done:false, is_checklist:isChecklist};
-  closeModal('reminder-modal');
+  
+  // Don't close modal until we know save succeeded
+  const btn=document.getElementById('rem-save-btn');
+  btn.textContent='Saving...'; btn.disabled=true;
+  
   try {
-    const result = await sbInsert('reminders', rem);
-    const saved = Array.isArray(result) ? result[0] : result;
-    if(!saved || saved.error) { alert('Could not save reminder — please try again.'); return; }
-    reminders.unshift(saved);
-    if(isChecklist && reminderChecklistDraft.length){
-      reminderChecklistCache[saved.id]=[];
-      for(let i=0;i<reminderChecklistDraft.length;i++){
-        const itemResult=await sbInsert('reminder_checklist_items',{reminder_id:saved.id,title:reminderChecklistDraft[i],done:false,sort_order:i});
-        const item=Array.isArray(itemResult)?itemResult[0]:itemResult;
-        if(item) reminderChecklistCache[saved.id].push(item);
-      }
-      reminderChecklistCache[saved.id]={items:reminderChecklistCache[saved.id]};
-      rebuildReminderChecklistCount(saved.id);
+    const res = await fetch(`${SB_URL}/rest/v1/reminders`, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey':SB_KEY,
+        'Authorization':'Bearer '+SB_KEY,
+        'Prefer':'return=representation'
+      },
+      body:JSON.stringify(rem)
+    });
+    const result = await res.json();
+    if(!res.ok){ 
+      btn.textContent='Save reminder'; btn.disabled=false;
+      alert('Error saving: '+(result.message||result.error||JSON.stringify(result)));
+      return;
     }
+    const saved = Array.isArray(result)?result[0]:result;
+    reminders.unshift(saved);
+    closeModal('reminder-modal');
     renderAll();
     showBanner('rem-banner','rem-banner-txt','Reminder added — "'+title+'"');
   } catch(e) {
-    console.error('Save reminder error:', e);
-    alert('Could not save reminder: ' + e.message);
+    btn.textContent='Save reminder'; btn.disabled=false;
+    alert('Network error: '+e.message);
   }
 }
 
