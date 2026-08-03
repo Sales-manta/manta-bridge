@@ -861,7 +861,9 @@ async function sbGet(table, filter=''){
 }
 async function sbInsert(table, data){
   const res = await fetch(`${SB_URL}/rest/v1/${table}`, {method:'POST', headers:SB_HEADERS, body:JSON.stringify(data)});
-  return res.json();
+  const result = await res.json();
+  if(!res.ok) { console.error('sbInsert error:', table, result); throw new Error(result.message||'Insert failed'); }
+  return Array.isArray(result) ? result : [result];
 }
 async function sbUpdate(table, id, data){
   const res = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {method:'PATCH', headers:SB_HEADERS, body:JSON.stringify(data)});
@@ -1937,19 +1939,27 @@ async function saveReminder(){
   const isChecklist=document.getElementById('rem-type-checklist').classList.contains('active');
   const rem={title, owner:document.getElementById('rem-owner').value, due_date:document.getElementById('rem-date').value||null, due_time:document.getElementById('rem-time').value||null, timezone:document.getElementById('rem-tz').value, notes:isChecklist?null:(document.getElementById('rem-notes').value||null), done:false, is_checklist:isChecklist};
   closeModal('reminder-modal');
-  const [saved]=await sbInsert('reminders',rem);
-  reminders.unshift(saved);
-  if(isChecklist&&reminderChecklistDraft.length){
-    reminderChecklistCache[saved.id]=[];
-    for(let i=0;i<reminderChecklistDraft.length;i++){
-      const [item]=await sbInsert('reminder_checklist_items',{reminder_id:saved.id,title:reminderChecklistDraft[i],done:false,sort_order:i});
-      reminderChecklistCache[saved.id].push(item);
+  try {
+    const result = await sbInsert('reminders', rem);
+    const saved = Array.isArray(result) ? result[0] : result;
+    if(!saved || saved.error) { alert('Could not save reminder — please try again.'); return; }
+    reminders.unshift(saved);
+    if(isChecklist && reminderChecklistDraft.length){
+      reminderChecklistCache[saved.id]=[];
+      for(let i=0;i<reminderChecklistDraft.length;i++){
+        const itemResult=await sbInsert('reminder_checklist_items',{reminder_id:saved.id,title:reminderChecklistDraft[i],done:false,sort_order:i});
+        const item=Array.isArray(itemResult)?itemResult[0]:itemResult;
+        if(item) reminderChecklistCache[saved.id].push(item);
+      }
+      reminderChecklistCache[saved.id]={items:reminderChecklistCache[saved.id]};
+      rebuildReminderChecklistCount(saved.id);
     }
-    reminderChecklistCache[saved.id]={items:reminderChecklistCache[saved.id]};
-    rebuildReminderChecklistCount(saved.id);
+    renderAll();
+    showBanner('rem-banner','rem-banner-txt','Reminder added — "'+title+'"');
+  } catch(e) {
+    console.error('Save reminder error:', e);
+    alert('Could not save reminder: ' + e.message);
   }
-  renderAll();
-  showBanner('rem-banner','rem-banner-txt','Reminder added — "'+title+'"');
 }
 
 function rebuildReminderChecklistCount(rid){
