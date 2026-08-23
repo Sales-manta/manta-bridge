@@ -15,7 +15,6 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         with:
           script: |
-            const eventType = context.eventName === 'repository_dispatch' ? context.payload.action : 'add-item';
             const table = context.payload.client_payload.table;
             const data = context.payload.client_payload.data;
             const recordId = context.payload.client_payload.id;
@@ -24,6 +23,12 @@ jobs:
               ? `${process.env.SUPABASE_URL}/rest/v1/${table}?id=eq.${recordId}`
               : `${process.env.SUPABASE_URL}/rest/v1/${table}`;
             const method = isUpdate ? 'PATCH' : 'POST';
+            console.log('URL:', url);
+            console.log('Method:', method);
+            console.log('Data:', JSON.stringify(data));
+            console.log('SUPABASE_URL set:', !!process.env.SUPABASE_URL);
+            console.log('SUPABASE_KEY set:', !!process.env.SUPABASE_KEY);
+            console.log('SUPABASE_KEY length:', process.env.SUPABASE_KEY?.length);
             const res = await fetch(url, {
               method,
               headers: {
@@ -34,6 +39,7 @@ jobs:
               },
               body: JSON.stringify(data)
             });
-            const result = await res.json();
-            console.log('Result:', JSON.stringify(result));
-            if (!res.ok) throw new Error(`Supabase error: ${JSON.stringify(result)}`);
+            const text = await res.text();
+            console.log('Status:', res.status);
+            console.log('Response:', text);
+            if (!res.ok) throw new Error(`Supabase error ${res.status}: ${text}`);
