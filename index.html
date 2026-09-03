@@ -1229,7 +1229,7 @@ function taskHTML(t,type){
       <div class="tmeta">
         <span class="tag ${priTag[t.pri]}">${t.pri}</span>
         <span class="tag ${catTag[t.cat]||''}">${t.cat}</span>
-        ${t.due?`<span style="font-size:10px;color:var(--text3)">${t.due}</span>`:''}
+        ${t.due?(()=>{const d=fmtDue(t.due);return`<span style="font-size:10px;color:${d.color};background:${d.bg};padding:${d.bg!=='transparent'?'1px 6px':'0'};border-radius:10px;font-weight:${d.bg!=='transparent'?'500':'400'}">${d.label}</span>`;})():''}
         ${checklistBadge}
         ${hasNotes?`<span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:2px"><svg width="10" height="10" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Notes</span>`:''}
       </div>
@@ -1238,7 +1238,31 @@ function taskHTML(t,type){
   </div>`;
 }
 
-// ── DRAG AND DROP REORDERING ───────────────────────────────────────────────
+// ── DUE DATE FORMATTER ────────────────────────────────────────────────────────
+function fmtDue(dateStr){
+  if(!dateStr) return '';
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const due = new Date(y, m-1, d);
+  const today = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate());
+  const diffDays = Math.round((due - today) / 86400000);
+  const dayName = DAYS[due.getDay()];
+  const monthName = MONTHS[due.getMonth()];
+  const dateLabel = `${dayName}, ${monthName} ${d} ${y}`;
+  // Get start of this week (Monday) and end (Sunday)
+  const todayDay = today.getDay(); // 0=Sun
+  const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - (todayDay === 0 ? 6 : todayDay - 1));
+  const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(startOfWeek.getDate() + 6);
+  const isThisWeek = due >= startOfWeek && due <= endOfWeek;
+  if(diffDays < 0) return {label:`Overdue · ${dateLabel}`, color:'#C43D00', bg:'#FEE8D8'};
+  if(diffDays === 0) return {label:`Due Today · ${dateLabel}`, color:'#C43D00', bg:'#FEE8D8'};
+  if(diffDays === 1) return {label:`Due Tomorrow · ${dateLabel}`, color:'#8A6200', bg:'#FEF5CC'};
+  if(isThisWeek) return {label:`Due This ${dateLabel}`, color:'#8A6200', bg:'#FEF5CC'};
+  return {label:`Due ${dateLabel}`, color:'var(--text3)', bg:'transparent'};
+}
+
+
 let dragSrcEl = null;
 
 function taskDragStart(e){
@@ -1427,7 +1451,17 @@ function rht(){
 
 function rwt(){
   const q=document.getElementById('w-search').value.toLowerCase();
-  const list=workTasks.filter(t=>t.status===workTab&&(!q||t.title.toLowerCase().includes(q))).sort((a,b)=>(a.sort_order??999)-(b.sort_order??999)||priOrder[a.pri]-priOrder[b.pri]);
+  const list=workTasks.filter(t=>t.status===workTab&&(!q||t.title.toLowerCase().includes(q))).sort((a,b)=>{
+    const aHasDue=!!a.due, bHasDue=!!b.due;
+    if(aHasDue&&!bHasDue) return -1;
+    if(!aHasDue&&bHasDue) return 1;
+    if(aHasDue&&bHasDue){
+      const dateCmp=a.due.localeCompare(b.due);
+      if(dateCmp!==0) return dateCmp;
+      return priOrder[a.pri]-priOrder[b.pri];
+    }
+    return (a.sort_order??999)-(b.sort_order??999)||priOrder[a.pri]-priOrder[b.pri];
+  });
   const adm=list.filter(t=>t.cat==='Admin Task');
   const call=list.filter(t=>t.cat==='Call/Text');
   const inv=list.filter(t=>t.cat==='Invoicing');
